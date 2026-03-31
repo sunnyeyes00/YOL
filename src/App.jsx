@@ -296,119 +296,110 @@ Asking: ${price}
           <div style={s.card}>
             <h2 style={{ ...s.sectionTitle, marginBottom:'20px' }}>Add New Item</h2>
             <form onSubmit={addItem}>
-              {/* Core info */}
-              <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'16px', marginBottom:'16px' }}>
-                <div style={{ fontSize:'13px', fontWeight:600, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Core Info</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                  <div style={{ gridColumn:'1/-1' }}>
-                    <label style={s.label}>Item Name *</label>
-                    <input style={s.input} value={form.name} onChange={e => setForm({...form, name:e.target.value})} placeholder="e.g. Blue cashmere sweater" required />
-                  </div>
+
+              {/* Required fields */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'16px' }}>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={s.label}>Item Name <span style={{ color:'#ef4444' }}>*</span></label>
+                  <input style={s.input} value={form.name} onChange={e => setForm({...form, name:e.target.value})} placeholder="e.g. Blue cashmere sweater" required />
+                </div>
+                <div>
+                  <label style={s.label}>Category <span style={{ color:'#ef4444' }}>*</span></label>
+                  <select style={s.select} value={form.category} onChange={e => setForm({...form, category:e.target.value})}>
+                    {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={s.label}>Decision <span style={{ color:'#ef4444' }}>*</span></label>
+                  <select style={s.select} value={form.decision} onChange={e => setForm({...form, decision:e.target.value})}>
+                    {DECISIONS.map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Optional fields */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'16px' }}>
+                <div>
+                  <label style={s.label}>Location <span style={{ color:'#94a3b8', fontWeight:400 }}>(optional)</span></label>
+                  <input style={s.input} value={form.location} onChange={e => setForm({...form, location:e.target.value})} placeholder="e.g. Bedroom closet" />
+                </div>
+                <div>
+                  <label style={s.label}>How Acquired <span style={{ color:'#94a3b8', fontWeight:400 }}>(optional)</span></label>
+                  <select style={s.select} value={form.how_acquired} onChange={e => setForm({...form, how_acquired:e.target.value})}>
+                    <option value="">— select —</option>
+                    {HOW_ACQUIRED.map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={s.label}>Date Acquired <span style={{ color:'#94a3b8', fontWeight:400 }}>(MM/YYYY, optional)</span></label>
+                  <input style={s.input} value={form.date_acquired} onChange={e => setForm({...form, date_acquired:e.target.value})} placeholder="e.g. 03/2022" />
+                </div>
+                {shouldHaveDateResolved(form.decision) && (
                   <div>
-                    <label style={s.label}>Category</label>
-                    <select style={s.select} value={form.category} onChange={e => setForm({...form, category:e.target.value})}>
-                      {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                    </select>
+                    <label style={s.label}>Date Left Home <span style={{ color:'#94a3b8', fontWeight:400 }}>(optional)</span></label>
+                    <input style={s.input} type="date" value={form.date_resolved} onChange={e => setForm({...form, date_resolved:e.target.value})} />
                   </div>
-                  <div>
-                    <label style={s.label}>Location</label>
-                    <input style={s.input} value={form.location} onChange={e => setForm({...form, location:e.target.value})} placeholder="e.g. Bedroom closet" />
+                )}
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={s.label}>Emotional Attachment: {form.emotional_attachment}/5 <span style={{ color:'#94a3b8', fontWeight:400 }}>(optional)</span></label>
+                  <input type="range" min="1" max="5" value={form.emotional_attachment} onChange={e => setForm({...form, emotional_attachment:e.target.value})} style={{ width:'100%', accentColor:'#a855f7' }} />
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', color:'#94a3b8' }}>
+                    <span>1 — Don't care</span><span>5 — Very attached</span>
                   </div>
                 </div>
               </div>
 
-              {/* Financial */}
-              <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'16px', marginBottom:'16px' }}>
-                <div style={{ fontSize:'13px', fontWeight:600, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Financial</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              {/* Poshmark toggle */}
+              <div style={{ marginBottom:'16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setForm({...form, poshmark: !form.poshmark})}
+                  style={{ display:'flex', alignItems:'center', gap:'10px', padding:'12px 16px', border:`2px solid ${form.poshmark ? '#ec4899' : '#e2e8f0'}`, borderRadius:'10px', background: form.poshmark ? '#fdf2f8' : 'white', cursor:'pointer', width:'100%', textAlign:'left' }}
+                >
+                  <div style={{ width:'36px', height:'20px', borderRadius:'999px', background: form.poshmark ? '#ec4899' : '#cbd5e1', position:'relative', flexShrink:0, transition:'background 0.2s' }}>
+                    <div style={{ position:'absolute', top:'2px', left: form.poshmark ? '18px' : '2px', width:'16px', height:'16px', borderRadius:'50%', background:'white', transition:'left 0.2s' }} />
+                  </div>
+                  <span style={{ fontWeight:600, fontSize:'14px', color: form.poshmark ? '#ec4899' : '#64748b' }}>List on Poshmark?</span>
+                  {form.poshmark && <span style={{ fontSize:'12px', color:'#ec4899', marginLeft:'auto' }}>Fields below will appear in your listing</span>}
+                </button>
+              </div>
+
+              {/* Poshmark fields — only shown when toggled on */}
+              {form.poshmark && (
+                <div style={{ background:'#fdf2f8', border:'1px solid #fbcfe8', borderRadius:'10px', padding:'16px', marginBottom:'16px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                  <div>
+                    <label style={s.label}>Brand</label>
+                    <input style={s.input} value={form.brand} onChange={e => setForm({...form, brand:e.target.value})} placeholder="e.g. Zara, Nike" />
+                  </div>
+                  <div>
+                    <label style={s.label}>Condition</label>
+                    <select style={s.select} value={form.condition} onChange={e => setForm({...form, condition:e.target.value})}>
+                      <option value="">— select —</option>
+                      {CONDITIONS.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={s.label}>Size</label>
+                    <input style={s.input} value={form.size} onChange={e => setForm({...form, size:e.target.value})} placeholder="e.g. M, 8.5, 12x6 in" />
+                  </div>
+                  <div>
+                    <label style={s.label}>Color</label>
+                    <input style={s.input} value={form.color} onChange={e => setForm({...form, color:e.target.value})} placeholder="e.g. Navy blue" />
+                  </div>
                   <div>
                     <label style={s.label}>Original Price Paid ($)</label>
                     <input style={s.input} type="number" min="0" step="0.01" value={form.original_price} onChange={e => setForm({...form, original_price:e.target.value})} placeholder="0.00" />
                   </div>
                   <div>
-                    <label style={s.label}>Estimated Current Value ($)</label>
-                    <input style={s.input} type="number" min="0" step="0.01" value={form.estimated_value} onChange={e => setForm({...form, estimated_value:e.target.value})} placeholder="0.00" />
+                    <label style={s.label}>Asking Price ($)</label>
+                    <input style={s.input} type="number" min="0" step="0.01" value={form.asking_price} onChange={e => setForm({...form, asking_price:e.target.value})} placeholder="0.00" />
                   </div>
-                </div>
-              </div>
-
-              {/* Acquisition */}
-              <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'16px', marginBottom:'16px' }}>
-                <div style={{ fontSize:'13px', fontWeight:600, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Acquisition</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                  <div>
-                    <label style={s.label}>How Acquired</label>
-                    <select style={s.select} value={form.how_acquired} onChange={e => setForm({...form, how_acquired:e.target.value})}>
-                      {HOW_ACQUIRED.map(h => <option key={h}>{h}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={s.label}>Date Acquired (MM/YYYY)</label>
-                    <input style={s.input} value={form.date_acquired} onChange={e => setForm({...form, date_acquired:e.target.value})} placeholder="e.g. 03/2022" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Decision */}
-              <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'16px', marginBottom:'16px' }}>
-                <div style={{ fontSize:'13px', fontWeight:600, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Decision</div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                  <div>
-                    <label style={s.label}>Decision</label>
-                    <select style={s.select} value={form.decision} onChange={e => setForm({...form, decision:e.target.value})}>
-                      {DECISIONS.map(d => <option key={d}>{d}</option>)}
-                    </select>
-                  </div>
-                  {shouldHaveDateResolved(form.decision) && (
-                    <div>
-                      <label style={s.label}>Date Left Home</label>
-                      <input style={s.input} type="date" value={form.date_resolved} onChange={e => setForm({...form, date_resolved:e.target.value})} />
-                    </div>
-                  )}
                   <div style={{ gridColumn:'1/-1' }}>
-                    <label style={s.label}>Emotional Attachment: {form.emotional_attachment}/5</label>
-                    <input type="range" min="1" max="5" value={form.emotional_attachment} onChange={e => setForm({...form, emotional_attachment:e.target.value})} style={{ width:'100%', accentColor:'#a855f7' }} />
-                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:'11px', color:'#94a3b8' }}>
-                      <span>1 — Don't care</span><span>5 — Very attached</span>
-                    </div>
+                    <label style={s.label}>Flaws or Notes</label>
+                    <input style={s.input} value={form.flaws} onChange={e => setForm({...form, flaws:e.target.value})} placeholder="Any flaws to mention in the listing?" />
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', gridColumn:'1/-1' }}>
-                    <input type="checkbox" id="poshmark" checked={form.poshmark} onChange={e => setForm({...form, poshmark:e.target.checked})} style={{ width:'16px', height:'16px', cursor:'pointer' }} />
-                    <label htmlFor="poshmark" style={{ fontSize:'14px', cursor:'pointer' }}>Add to Poshmark Queue</label>
-                  </div>
-                  {form.poshmark && (<>
-                    <div style={{ gridColumn:'1/-1', background:'#fdf2f8', border:'1px solid #fbcfe8', borderRadius:'8px', padding:'12px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                      <div style={{ gridColumn:'1/-1', fontSize:'12px', fontWeight:600, color:'#ec4899', textTransform:'uppercase', letterSpacing:'0.05em' }}>Poshmark Details</div>
-                      <div>
-                        <label style={s.label}>Brand</label>
-                        <input style={s.input} value={form.brand} onChange={e => setForm({...form, brand:e.target.value})} placeholder="e.g. Zara, Nike" />
-                      </div>
-                      <div>
-                        <label style={s.label}>Condition</label>
-                        <select style={s.select} value={form.condition} onChange={e => setForm({...form, condition:e.target.value})}>
-                          {CONDITIONS.map(c => <option key={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={s.label}>Size</label>
-                        <input style={s.input} value={form.size} onChange={e => setForm({...form, size:e.target.value})} placeholder="e.g. M, 8.5, 12x6 in" />
-                      </div>
-                      <div>
-                        <label style={s.label}>Color</label>
-                        <input style={s.input} value={form.color} onChange={e => setForm({...form, color:e.target.value})} placeholder="e.g. Navy blue" />
-                      </div>
-                      <div>
-                        <label style={s.label}>Asking Price ($)</label>
-                        <input style={s.input} type="number" min="0" step="0.01" value={form.asking_price} onChange={e => setForm({...form, asking_price:e.target.value})} placeholder="0.00" />
-                      </div>
-                      <div>
-                        <label style={s.label}>Flaws or Notes</label>
-                        <input style={s.input} value={form.flaws} onChange={e => setForm({...form, flaws:e.target.value})} placeholder="Any flaws to mention?" />
-                      </div>
-                    </div>
-                  </>)}
                 </div>
-              </div>
+              )}
 
               <div style={{ display:'flex', gap:'12px' }}>
                 <button type="submit" style={s.btn()} disabled={loading}>{loading ? 'Adding...' : 'Add Item'}</button>
