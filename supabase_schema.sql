@@ -1,20 +1,29 @@
-create table if not exists items (
-  id uuid default gen_random_uuid() primary key,
-  name text not null,
-  category text check (category in ('Home', 'Digital')) not null,
-  location text,
-  estimated_value numeric(10,2),
-  condition text check (condition in ('Excellent', 'Good', 'Fair', 'Poor')),
-  decision text check (decision in ('Keep', 'Sell', 'Donate', 'Toss', 'Undecided')) default 'Undecided',
-  poshmark boolean default false,
-  poshmark_listing text,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
+-- Add new category and fields to items table
+-- Run this in Supabase SQL Editor
 
--- Enable RLS
-alter table items enable row level security;
+-- Drop old category constraint and add new one
+ALTER TABLE items DROP CONSTRAINT IF EXISTS items_category_check;
+ALTER TABLE items ADD CONSTRAINT items_category_check CHECK (category IN (
+  'Bedroom', 'Clothes', 'Shoes', 'Purses', 'Makeup', 'Skincare',
+  'Hair Products', 'Hair Tools', 'Body Hygiene', 'Home Cleaning',
+  'Tools', 'Canned Food', 'Seasonings', 'Crafts', 'Tech',
+  'House Misc', 'Clothes Accessories', 'Kitchen', 'Cooking Oils', 'Kitchen Tools'
+));
 
--- Allow all operations for anon (for demo purposes)
-create policy "Allow all for anon" on items
-  for all using (true) with check (true);
+-- Drop old condition constraint and add new one
+ALTER TABLE items DROP CONSTRAINT IF EXISTS items_condition_check;
+ALTER TABLE items ADD CONSTRAINT items_condition_check CHECK (condition IN (
+  'New with tags', 'Like new', 'Good', 'Fair', 'Poor'
+));
+
+-- Add new columns
+ALTER TABLE items ADD COLUMN IF NOT EXISTS brand text;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS size_dimensions text;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS color text;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS original_price numeric(10,2);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS how_acquired text CHECK (how_acquired IN ('Bought', 'Gifted', 'Inherited', 'Impulse buy'));
+ALTER TABLE items ADD COLUMN IF NOT EXISTS date_acquired text; -- stored as "MM/YYYY"
+ALTER TABLE items ADD COLUMN IF NOT EXISTS emotional_attachment integer CHECK (emotional_attachment BETWEEN 1 AND 5);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS poshmark_asking_price numeric(10,2);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS flaws_notes text;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS date_resolved date; -- when item left the home
