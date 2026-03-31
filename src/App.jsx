@@ -21,10 +21,12 @@ const DECISION_COLORS = {
 
 const emptyForm = {
   name: '', category: 'Clothes', location: '', estimated_value: '',
-  condition: 'Good', decision: 'Undecided', poshmark: false,
-  brand: '', size_dimensions: '', color: '', original_price: '',
+  decision: 'Undecided', poshmark: false,
   how_acquired: 'Bought', date_acquired: '', emotional_attachment: 3,
-  poshmark_asking_price: '', flaws_notes: '', date_resolved: '',
+  original_price: '', date_resolved: '',
+  // Poshmark-only fields
+  brand: '', size: '', color: '', condition: 'Good',
+  asking_price: '', flaws: '',
 }
 
 export default function App() {
@@ -54,9 +56,15 @@ export default function App() {
       ...form,
       estimated_value: form.estimated_value ? parseFloat(form.estimated_value) : null,
       original_price: form.original_price ? parseFloat(form.original_price) : null,
-      poshmark_asking_price: form.poshmark_asking_price ? parseFloat(form.poshmark_asking_price) : null,
+      asking_price: form.asking_price ? parseFloat(form.asking_price) : null,
       emotional_attachment: parseInt(form.emotional_attachment),
       date_resolved: shouldHaveDateResolved(form.decision) && form.date_resolved ? form.date_resolved : null,
+      // Only send poshmark fields if flagged
+      brand: form.poshmark ? form.brand : null,
+      size: form.poshmark ? form.size : null,
+      color: form.poshmark ? form.color : null,
+      condition: form.poshmark ? form.condition : null,
+      flaws: form.poshmark ? form.flaws : null,
     }
     const { error } = await supabase.from('items').insert([payload])
     if (error) { setError(error.message) }
@@ -87,14 +95,14 @@ export default function App() {
   }
 
   function generateListing(item) {
-    const price = item.poshmark_asking_price ? `$${parseFloat(item.poshmark_asking_price).toFixed(2)}` : (item.estimated_value ? `$${parseFloat(item.estimated_value).toFixed(2)}` : 'Price TBD')
+    const price = item.asking_price ? `$${parseFloat(item.asking_price).toFixed(2)}` : (item.estimated_value ? `$${parseFloat(item.estimated_value).toFixed(2)}` : 'Price TBD')
     const text = `🛍️ ${item.brand ? item.brand + ' ' : ''}${item.name}
 
-Condition: ${item.condition}
-${item.size_dimensions ? `Size: ${item.size_dimensions}` : ''}
+Condition: ${item.condition || 'See description'}
+${item.size ? `Size: ${item.size}` : ''}
 ${item.color ? `Color: ${item.color}` : ''}
 ${item.category ? `Category: ${item.category}` : ''}
-${item.flaws_notes ? `\nNotes: ${item.flaws_notes}` : ''}
+${item.flaws ? `\nNotes: ${item.flaws}` : ''}
 
 ${item.condition === 'New with tags' ? 'Brand new with tags! Never worn/used.' : item.condition === 'Like new' ? 'Like new! Barely used, no flaws.' : item.condition === 'Good' ? 'Gently used with minimal wear.' : item.condition === 'Fair' ? 'Shows some signs of use but fully functional.' : 'As-is condition, priced accordingly.'}
 
@@ -119,10 +127,10 @@ Asking: ${price}
   const donated = items.filter(i => i.decision === 'Donate')
   const tossed = items.filter(i => i.decision === 'Toss')
 
-  const moneyRecovered = sold.reduce((s, i) => s + (i.poshmark_asking_price || i.estimated_value || 0), 0)
+  const moneyRecovered = sold.reduce((s, i) => s + (i.asking_price || i.estimated_value || 0), 0)
   const moneyLeftOnTable = sold.reduce((s, i) => {
     const orig = i.original_price || 0
-    const sell = i.poshmark_asking_price || i.estimated_value || 0
+    const sell = i.asking_price || i.estimated_value || 0
     return s + Math.max(0, orig - sell)
   }, 0)
 
@@ -303,26 +311,8 @@ Asking: ${price}
                     </select>
                   </div>
                   <div>
-                    <label style={s.label}>Brand</label>
-                    <input style={s.input} value={form.brand} onChange={e => setForm({...form, brand:e.target.value})} placeholder="e.g. Zara, Apple" />
-                  </div>
-                  <div>
-                    <label style={s.label}>Color</label>
-                    <input style={s.input} value={form.color} onChange={e => setForm({...form, color:e.target.value})} placeholder="e.g. Navy blue" />
-                  </div>
-                  <div>
-                    <label style={s.label}>Size / Dimensions</label>
-                    <input style={s.input} value={form.size_dimensions} onChange={e => setForm({...form, size_dimensions:e.target.value})} placeholder="e.g. M, 8.5, 12x6 in" />
-                  </div>
-                  <div>
                     <label style={s.label}>Location</label>
                     <input style={s.input} value={form.location} onChange={e => setForm({...form, location:e.target.value})} placeholder="e.g. Bedroom closet" />
-                  </div>
-                  <div>
-                    <label style={s.label}>Condition</label>
-                    <select style={s.select} value={form.condition} onChange={e => setForm({...form, condition:e.target.value})}>
-                      {CONDITIONS.map(c => <option key={c}>{c}</option>)}
-                    </select>
                   </div>
                 </div>
               </div>
@@ -382,25 +372,41 @@ Asking: ${price}
                       <span>1 — Don't care</span><span>5 — Very attached</span>
                     </div>
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'8px', gridColumn:'1/-1' }}>
                     <input type="checkbox" id="poshmark" checked={form.poshmark} onChange={e => setForm({...form, poshmark:e.target.checked})} style={{ width:'16px', height:'16px', cursor:'pointer' }} />
                     <label htmlFor="poshmark" style={{ fontSize:'14px', cursor:'pointer' }}>Add to Poshmark Queue</label>
                   </div>
-                  {form.poshmark && (
-                    <div>
-                      <label style={s.label}>Poshmark Asking Price ($)</label>
-                      <input style={s.input} type="number" min="0" step="0.01" value={form.poshmark_asking_price} onChange={e => setForm({...form, poshmark_asking_price:e.target.value})} placeholder="0.00" />
+                  {form.poshmark && (<>
+                    <div style={{ gridColumn:'1/-1', background:'#fdf2f8', border:'1px solid #fbcfe8', borderRadius:'8px', padding:'12px', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                      <div style={{ gridColumn:'1/-1', fontSize:'12px', fontWeight:600, color:'#ec4899', textTransform:'uppercase', letterSpacing:'0.05em' }}>Poshmark Details</div>
+                      <div>
+                        <label style={s.label}>Brand</label>
+                        <input style={s.input} value={form.brand} onChange={e => setForm({...form, brand:e.target.value})} placeholder="e.g. Zara, Nike" />
+                      </div>
+                      <div>
+                        <label style={s.label}>Condition</label>
+                        <select style={s.select} value={form.condition} onChange={e => setForm({...form, condition:e.target.value})}>
+                          {CONDITIONS.map(c => <option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={s.label}>Size</label>
+                        <input style={s.input} value={form.size} onChange={e => setForm({...form, size:e.target.value})} placeholder="e.g. M, 8.5, 12x6 in" />
+                      </div>
+                      <div>
+                        <label style={s.label}>Color</label>
+                        <input style={s.input} value={form.color} onChange={e => setForm({...form, color:e.target.value})} placeholder="e.g. Navy blue" />
+                      </div>
+                      <div>
+                        <label style={s.label}>Asking Price ($)</label>
+                        <input style={s.input} type="number" min="0" step="0.01" value={form.asking_price} onChange={e => setForm({...form, asking_price:e.target.value})} placeholder="0.00" />
+                      </div>
+                      <div>
+                        <label style={s.label}>Flaws or Notes</label>
+                        <input style={s.input} value={form.flaws} onChange={e => setForm({...form, flaws:e.target.value})} placeholder="Any flaws to mention?" />
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'16px', marginBottom:'16px' }}>
-                <div style={{ fontSize:'13px', fontWeight:600, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Notes</div>
-                <div>
-                  <label style={s.label}>Flaws or Notes</label>
-                  <textarea style={{ ...s.input, height:'80px', resize:'vertical' }} value={form.flaws_notes} onChange={e => setForm({...form, flaws_notes:e.target.value})} placeholder="Describe any flaws, special details, memories..." />
+                  </>)}
                 </div>
               </div>
 
@@ -440,7 +446,7 @@ Asking: ${price}
                         <td style={s.td}><strong>{item.name}</strong>{item.flaws_notes && <span style={{ marginLeft:'6px', fontSize:'11px', color:'#94a3b8' }}>📝</span>}</td>
                         <td style={s.td}><span style={{ fontSize:'12px', background:'#f1f5f9', padding:'2px 6px', borderRadius:'4px' }}>{item.category}</span></td>
                         <td style={s.td}>{item.brand || '—'}</td>
-                        <td style={s.td}>{item.size_dimensions || '—'}</td>
+                        <td style={s.td}>{item.size || '—'}</td>
                         <td style={s.td}>{item.color || '—'}</td>
                         <td style={s.td}>{item.condition || '—'}</td>
                         <td style={s.td} onClick={e => e.stopPropagation()}>
@@ -464,12 +470,12 @@ Asking: ${price}
                             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px, 1fr))', gap:'12px', fontSize:'13px' }}>
                               {item.original_price && <div><span style={{ color:'#64748b' }}>Original price:</span> <strong>${parseFloat(item.original_price).toFixed(2)}</strong></div>}
                               {item.estimated_value && <div><span style={{ color:'#64748b' }}>Est. value:</span> <strong>${parseFloat(item.estimated_value).toFixed(2)}</strong></div>}
-                              {item.poshmark_asking_price && <div><span style={{ color:'#64748b' }}>Poshmark price:</span> <strong>${parseFloat(item.poshmark_asking_price).toFixed(2)}</strong></div>}
+                              {item.asking_price && <div><span style={{ color:'#64748b' }}>Asking price:</span> <strong>${parseFloat(item.asking_price).toFixed(2)}</strong></div>}
                               {item.how_acquired && <div><span style={{ color:'#64748b' }}>Acquired:</span> <strong>{item.how_acquired}</strong></div>}
                               {item.date_acquired && <div><span style={{ color:'#64748b' }}>Date acquired:</span> <strong>{item.date_acquired}</strong></div>}
                               {item.location && <div><span style={{ color:'#64748b' }}>Location:</span> <strong>{item.location}</strong></div>}
                               {item.date_resolved && <div><span style={{ color:'#64748b' }}>Date resolved:</span> <strong>{item.date_resolved}</strong></div>}
-                              {item.flaws_notes && <div style={{ gridColumn:'1/-1' }}><span style={{ color:'#64748b' }}>Notes:</span> <strong>{item.flaws_notes}</strong></div>}
+                              {item.flaws && <div style={{ gridColumn:'1/-1' }}><span style={{ color:'#64748b' }}>Flaws:</span> <strong>{item.flaws}</strong></div>}
                             </div>
                           </td>
                         </tr>
@@ -499,12 +505,12 @@ Asking: ${price}
                   <div key={item.id} style={{ border:'1px solid #e2e8f0', borderRadius:'10px', padding:'16px', background:'#fdf2f8' }}>
                     <div style={{ fontWeight:600, fontSize:'15px', marginBottom:'4px' }}>{item.brand ? `${item.brand} ` : ''}{item.name}</div>
                     <div style={{ fontSize:'13px', color:'#64748b', display:'flex', flexDirection:'column', gap:'3px', marginBottom:'12px' }}>
-                      <span>📦 {item.category} · {item.condition}</span>
-                      {item.size_dimensions && <span>📐 {item.size_dimensions}</span>}
+                      <span>📦 {item.category}{item.condition ? ` · ${item.condition}` : ''}</span>
+                      {item.size && <span>📐 {item.size}</span>}
                       {item.color && <span>🎨 {item.color}</span>}
-                      {item.poshmark_asking_price && <span style={{ color:'#ec4899', fontWeight:600 }}>💰 Asking ${parseFloat(item.poshmark_asking_price).toFixed(2)}</span>}
+                      {item.asking_price && <span style={{ color:'#ec4899', fontWeight:600 }}>💰 Asking ${parseFloat(item.asking_price).toFixed(2)}</span>}
                       {item.original_price && <span style={{ color:'#94a3b8' }}>Orig. ${parseFloat(item.original_price).toFixed(2)}</span>}
-                      {item.flaws_notes && <span>📝 {item.flaws_notes}</span>}
+                      {item.flaws && <span>📝 {item.flaws}</span>}
                     </div>
                     <button onClick={() => generateListing(item)} style={{ ...s.btn('#ec4899'), width:'100%' }}>✨ Generate Listing</button>
                   </div>
