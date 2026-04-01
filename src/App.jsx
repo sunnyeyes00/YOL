@@ -10,6 +10,7 @@ const CATEGORIES = [
   'House Misc', 'Clothes Accessories', 'Kitchen', 'Cooking Oils', 'Kitchen Tools',
   'Garage', 'Car & Auto', 'Sports & Outdoor', 'Garden & Outdoor Living',
   'Stationery', 'Wellness & Supplements', 'Books', 'Office Supplies',
+  'Furniture', 'Dry Goods & Pantry',
 ]
 const DECISIONS = ['Keep', 'Sell', 'Donate', 'Toss', 'Needs Repair', 'Undecided']
 const CONDITIONS = ['New with tags', 'Like new', 'Good', 'Fair', 'Poor']
