@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -12,6 +12,16 @@ const CATEGORIES = [
   'Stationery', 'Wellness & Supplements', 'Books', 'Office Supplies',
   'Furniture', 'Dry Goods & Pantry',
 ]
+
+const PANTRY_CATEGORIES = ['Canned Food', 'Dry Goods & Pantry', 'Seasonings', 'Cooking Oils', 'Kitchen', 'Kitchen Tools']
+
+// Colors cycling for categories in charts
+const CAT_COLORS = [
+  '#f59e0b','#fb7185','#c084fc','#10b981','#60a5fa','#fbbf24',
+  '#f9a8d4','#34d399','#a78bfa','#f97316','#4ade80','#e879f9',
+  '#38bdf8','#facc15','#fb923c','#86efac','#d8b4fe','#fda4af',
+]
+
 const DECISIONS = ['Keep', 'Sell', 'Donate', 'Toss', 'Needs Repair', 'Undecided']
 const CONDITIONS = ['New with tags', 'Like new', 'Good', 'Fair', 'Poor']
 const HOW_ACQUIRED = ['Bought', 'Gifted', 'Inherited', 'Impulse buy']
@@ -37,7 +47,7 @@ const START_DATE = new Date('2026-04-01')
 const AFFIRMATIONS = [
   'Releasing this makes space for abundance ✨',
   "That's one step closer to freedom, Alejandra 🌸",
-  'You\'re flourishing. Keep going 🌿',
+  "You're flourishing. Keep going 🌿",
   'Less stuff, more life. Yes! 💛',
   'Money is flowing back to you 🌊',
   'You did that. Abundant & free 🦋',
@@ -46,7 +56,7 @@ const AFFIRMATIONS = [
 ]
 
 const DAILY_AFFIRMATIONS = [
-  'Today you choose freedom over stuff. That\'s power. 🌸',
+  "Today you choose freedom over stuff. That's power. 🌸",
   'Every item released is a blessing returned to the world 🌿',
   'You are not your things. You are so much more. ✨',
   'Abundance flows toward those who make room 🌊',
@@ -54,13 +64,13 @@ const DAILY_AFFIRMATIONS = [
   'What you release, the universe replaces tenfold 🦋',
   'Soltar is brave. You are brave. 🌺',
   'Less clutter, clearer mind, bigger dreams 🌙',
-  'You\'re blooming. One item at a time 🌸',
+  "You're blooming. One item at a time 🌸",
   'This is your Year of Less — and so much more ✨',
 ]
 
 const MILESTONES = [
   { id: 'first', check: (r) => r === 1,   msg: 'Your first release! The journey begins, Alejandra 🌱', emoji: '🌱' },
-  { id: 'ten',   check: (r) => r === 10,  msg: '10 items released! You\'re on fire 🔥', emoji: '🔥' },
+  { id: 'ten',   check: (r) => r === 10,  msg: "10 items released! You're on fire 🔥", emoji: '🔥' },
   { id: 'g25',   check: (_, pct) => pct >= 25 && pct < 26, msg: '25% to your goal! One quarter of the way there 🌸', emoji: '🎉' },
   { id: 'g50',   check: (_, pct) => pct >= 50 && pct < 51, msg: 'Halfway there!! You are DOING it, Alejandra 🦋', emoji: '🦋' },
   { id: 'g70',   check: (_, pct) => pct >= 70 && pct < 71, msg: '🎊 70% GOAL REACHED! You are FREE! 🎊', emoji: '🎊' },
@@ -77,12 +87,53 @@ const emptyForm = {
 }
 
 const DEBT = [
-  { name: 'Aspire',      balance: 703,   apr: 36.00 },
-  { name: 'Prosper',     balance: 4890,  apr: 30.49 },
-  { name: 'Citi',        balance: 2103,  apr: 29.49 },
-  { name: 'Capital One', balance: 413,   apr: 28.99 },
+  { name: 'Aspire',      balance: 703,  apr: 36.00 },
+  { name: 'Prosper',     balance: 4890, apr: 30.49 },
+  { name: 'Citi',        balance: 2103, apr: 29.49 },
+  { name: 'Capital One', balance: 413,  apr: 28.99 },
 ]
 const DEBT_TOTAL = DEBT.reduce((s, d) => s + d.balance, 0)
+
+// ─── Donut Chart ─────────────────────────────────────────────────────────────
+
+function DonutChart({ data, size = 260 }) {
+  // data: [{label, count, color}]
+  const total = data.reduce((s, d) => s + d.count, 0)
+  if (total === 0) return (
+    <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', color: P.muted, fontSize: '13px' }}>
+      No items yet
+    </div>
+  )
+  const r = 90, cx = size / 2, cy = size / 2, stroke = 36
+  const circ = 2 * Math.PI * r
+
+  let cumulative = 0
+  const segments = data.filter(d => d.count > 0).map(d => {
+    const fraction = d.count / total
+    const len      = fraction * circ
+    const offset   = -(cumulative * circ)
+    cumulative += fraction
+    return { ...d, len, offset, fraction }
+  })
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {segments.map((seg, i) => (
+        <circle key={i} cx={cx} cy={cy} r={r}
+          fill="none" stroke={seg.color} strokeWidth={stroke}
+          strokeDasharray={`${seg.len} ${circ}`}
+          strokeDashoffset={seg.offset}
+          transform={`rotate(-90 ${cx} ${cy})`}
+          style={{ transition: 'all 0.4s ease' }}
+        />
+      ))}
+      {/* center hole white fill */}
+      <circle cx={cx} cy={cy} r={r - stroke / 2 - 2} fill="white" />
+      <text x={cx} y={cy - 8} textAnchor="middle" fontSize="28" fontWeight="800" fill={P.text}>{total}</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fontSize="11" fill={P.muted}>total items</text>
+    </svg>
+  )
+}
 
 // ─── Confetti ────────────────────────────────────────────────────────────────
 
@@ -150,11 +201,18 @@ export default function App() {
   const [expandedItem,   setExpandedItem]   = useState(null)
   const [intention,      setIntention]      = useState('')
   const [intentionSaved, setIntentionSaved] = useState(false)
-  const [affirmation,    setAffirmation]    = useState(null)   // { text, key }
-  const [milestone,      setMilestone]      = useState(null)   // { msg, emoji }
+  const [affirmation,    setAffirmation]    = useState(null)
+  const [milestone,      setMilestone]      = useState(null)
   const [confetti,       setConfetti]       = useState(false)
   const seenMilestones = useRef(new Set())
   const [dayCount,       setDayCount]       = useState(1)
+  // Inventory tab
+  const [invCatFilter,   setInvCatFilter]   = useState(null)
+  // Pantry tab
+  const [pantryMeals,    setPantryMeals]    = useState([])
+  const [mealSuggestions,setMealSuggestions]= useState([])
+  const [mealLoading,    setMealLoading]    = useState(false)
+  const [mealError,      setMealError]      = useState(null)
 
   // Day counter
   useEffect(() => {
@@ -162,10 +220,9 @@ export default function App() {
     setDayCount(Math.max(1, diff))
   }, [])
 
-  // Daily affirmation — keyed to day-of-year
   const dailyAffirmation = DAILY_AFFIRMATIONS[new Date().getDate() % DAILY_AFFIRMATIONS.length]
 
-  useEffect(() => { fetchItems(); fetchIntention() }, [])
+  useEffect(() => { fetchItems(); fetchIntention(); fetchPantryMeals() }, [])
 
   async function fetchItems() {
     const { data, error } = await supabase.from('items').select('*').order('created_at', { ascending: false })
@@ -184,14 +241,60 @@ export default function App() {
     setTimeout(() => setIntentionSaved(false), 2000)
   }
 
+  async function fetchPantryMeals() {
+    const { data } = await supabase.from('pantry_meals').select('*').order('cooked_at', { ascending: false })
+    setPantryMeals(data || [])
+  }
+
+  async function logMeal(mealName) {
+    const { error } = await supabase.from('pantry_meals').insert([{ meal_name: mealName, cooked_at: new Date().toISOString() }])
+    if (!error) fetchPantryMeals()
+  }
+
+  async function generateMeals(pantryItems) {
+    setMealLoading(true)
+    setMealError(null)
+    setMealSuggestions([])
+    const itemList = pantryItems.map(i => i.name).join(', ')
+    const apiKey   = import.meta.env.VITE_ANTHROPIC_API_KEY
+    if (!apiKey) { setMealError('Missing VITE_ANTHROPIC_API_KEY in environment variables.'); setMealLoading(false); return }
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 1024,
+          messages: [{
+            role: 'user',
+            content: `I am doing a Year of Less challenge and can only use what I already own. Based on these pantry items: ${itemList}, suggest 3 creative meal ideas I can make right now using only these ingredients. For each meal give it a fun name, list which ingredients it uses, and estimated prep time. Be encouraging and make it feel like an abundance mindset — I have everything I need. Respond as a JSON array of exactly 3 objects with keys: name (string), ingredients (array of strings), prep_time (string), encouragement (string).`,
+          }],
+        }),
+      })
+      if (!res.ok) { const err = await res.text(); throw new Error(err) }
+      const json = await res.json()
+      const raw  = json.content?.[0]?.text || ''
+      const match = raw.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('Could not parse meal suggestions')
+      setMealSuggestions(JSON.parse(match[0]))
+    } catch (e) {
+      setMealError('Could not generate meals: ' + e.message)
+    }
+    setMealLoading(false)
+  }
+
   function shouldHaveDateResolved(decision) {
     return ['Sell', 'Donate', 'Toss'].includes(decision)
   }
 
   function showAffirmation() {
     const text = AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)]
-    const key  = Date.now()
-    setAffirmation({ text, key })
+    setAffirmation({ text, key: Date.now() })
     setTimeout(() => setAffirmation(null), 3200)
   }
 
@@ -199,7 +302,6 @@ export default function App() {
     const rel   = nextItems.filter(i => ['Sell', 'Donate', 'Toss'].includes(i.decision))
     const pct   = nextItems.length > 0 ? Math.round(rel.length / nextItems.length * 100) : 0
     const money = rel.reduce((s, i) => s + (i.asking_price || i.estimated_value || 0), 0)
-
     for (const m of MILESTONES) {
       if (!seenMilestones.current.has(m.id) && m.check(rel.length, pct, money)) {
         seenMilestones.current.add(m.id)
@@ -217,16 +319,16 @@ export default function App() {
     setLoading(true)
     const payload = {
       ...form,
-      estimated_value:    form.estimated_value    ? parseFloat(form.estimated_value)    : null,
-      original_price:     form.original_price     ? parseFloat(form.original_price)     : null,
-      asking_price:       form.asking_price       ? parseFloat(form.asking_price)       : null,
-      emotional_attachment: form.emotional_attachment ? parseInt(form.emotional_attachment) : null,
+      estimated_value:      form.estimated_value      ? parseFloat(form.estimated_value)      : null,
+      original_price:       form.original_price       ? parseFloat(form.original_price)       : null,
+      asking_price:         form.asking_price         ? parseFloat(form.asking_price)         : null,
+      emotional_attachment: form.emotional_attachment ? parseInt(form.emotional_attachment)    : null,
       date_resolved: shouldHaveDateResolved(form.decision) && form.date_resolved ? form.date_resolved : null,
-      brand:     form.poshmark ? form.brand     : null,
-      size:      form.poshmark ? form.size      : null,
-      color:     form.poshmark ? form.color     : null,
-      condition: form.poshmark ? (form.condition || null) : null,
-      flaws:     form.poshmark ? form.flaws     : null,
+      brand:     form.poshmark ? form.brand              : null,
+      size:      form.poshmark ? form.size               : null,
+      color:     form.poshmark ? form.color              : null,
+      condition: form.poshmark ? (form.condition || null): null,
+      flaws:     form.poshmark ? form.flaws              : null,
     }
     const { error } = await supabase.from('items').insert([payload])
     if (error) { setError(error.message) } else {
@@ -254,10 +356,7 @@ export default function App() {
     await supabase.from('items').update(updates).eq('id', id)
     const next = items.map(i => i.id === id ? { ...i, ...updates } : i)
     setItems(next)
-    if (field === 'decision' && shouldHaveDateResolved(value)) {
-      showAffirmation()
-      checkMilestones(next)
-    }
+    if (field === 'decision' && shouldHaveDateResolved(value)) { showAffirmation(); checkMilestones(next) }
   }
 
   function generateListing(item) {
@@ -296,16 +395,23 @@ Asking: ${price}
   const goalPct = total > 0 ? Math.min(100, Math.round(released.length / total * 100)) : 0
   const GOAL    = 70
 
-  const moneyRecovered    = sold.reduce((s, i) => s + (i.asking_price || i.estimated_value || 0), 0)
-  const moneyLeftOnTable  = sold.reduce((s, i) => Math.max(0, (i.original_price || 0) - (i.asking_price || i.estimated_value || 0)) + s, 0)
+  const moneyRecovered   = sold.reduce((s, i) => s + (i.asking_price || i.estimated_value || 0), 0)
+  const moneyLeftOnTable = sold.reduce((s, i) => Math.max(0, (i.original_price || 0) - (i.asking_price || i.estimated_value || 0)) + s, 0)
 
   const decisionStats = DECISIONS.map(d => ({
-    label: d,
-    count: items.filter(i => i.decision === d).length,
-    pct:   total ? Math.round(items.filter(i => i.decision === d).length / total * 100) : 0,
-    color: DECISION_COLORS[d],
-    bg:    DECISION_BG[d],
+    label: d, count: items.filter(i => i.decision === d).length,
+    pct: total ? Math.round(items.filter(i => i.decision === d).length / total * 100) : 0,
+    color: DECISION_COLORS[d], bg: DECISION_BG[d],
   }))
+
+  // Category counts (all items)
+  const catCounts = {}
+  items.forEach(i => { catCounts[i.category] = (catCounts[i.category] || 0) + 1 })
+  const catCountsSorted = Object.entries(catCounts).sort((a, b) => b[1] - a[1])
+
+  // Assign stable colors to categories
+  const catColorMap = {}
+  CATEGORIES.forEach((c, i) => { catColorMap[c] = CAT_COLORS[i % CAT_COLORS.length] })
 
   const catReleasedCounts = {}
   released.forEach(i => { catReleasedCounts[i.category] = (catReleasedCounts[i.category] || 0) + 1 })
@@ -320,8 +426,7 @@ Asking: ${price}
 
   const releasedWithEA = released.filter(i => i.emotional_attachment)
   const avgEA = releasedWithEA.length
-    ? (releasedWithEA.reduce((s, i) => s + i.emotional_attachment, 0) / releasedWithEA.length).toFixed(1)
-    : '—'
+    ? (releasedWithEA.reduce((s, i) => s + i.emotional_attachment, 0) / releasedWithEA.length).toFixed(1) : '—'
 
   const filteredItems = items.filter(i => {
     if (filterDecision !== 'All' && i.decision !== filterDecision) return false
@@ -333,11 +438,22 @@ Asking: ${price}
     return true
   })
 
+  // Pantry items
+  const pantryItems = items.filter(i => PANTRY_CATEGORIES.includes(i.category))
+  const pantryByCategory = PANTRY_CATEGORIES.reduce((acc, cat) => {
+    const its = pantryItems.filter(i => i.category === cat)
+    if (its.length) acc[cat] = its
+    return acc
+  }, {})
+
+  // Inventory tab filtered items
+  const invItems = invCatFilter ? items.filter(i => i.category === invCatFilter) : items
+
   // ── Styles ─────────────────────────────────────────────────────────────────
   const s = {
-    app:   { fontFamily: "'Inter', system-ui, sans-serif", minHeight: '100vh', background: 'linear-gradient(135deg, #fff5f7 0%, #fdf4ff 50%, #f0fff4 100%)', color: P.text },
-    nav:   { background: 'white', borderBottom: `2px solid ${P.border}`, padding: '0 24px', display: 'flex', gap: '2px', overflowX: 'auto' },
-    navBtn: (a) => ({ padding: '14px 18px', border: 'none', background: a ? 'linear-gradient(135deg,#fff1f2,#fdf4ff)' : 'none', cursor: 'pointer', fontSize: '13px', fontWeight: a ? 700 : 500, color: a ? P.coral : P.muted, borderBottom: a ? `3px solid ${P.coral}` : '3px solid transparent', whiteSpace: 'nowrap', borderRadius: a ? '8px 8px 0 0' : '0' }),
+    app:   { fontFamily: "'Inter', system-ui, sans-serif", minHeight: '100vh', background: 'linear-gradient(135deg,#fff5f7 0%,#fdf4ff 50%,#f0fff4 100%)', color: P.text },
+    nav:   { background: 'white', borderBottom: `2px solid ${P.border}`, padding: '0 16px', display: 'flex', gap: '2px', overflowX: 'auto' },
+    navBtn:(a) => ({ padding: '13px 15px', border: 'none', background: a ? 'linear-gradient(135deg,#fff1f2,#fdf4ff)' : 'none', cursor: 'pointer', fontSize: '12px', fontWeight: a ? 700 : 500, color: a ? P.coral : P.muted, borderBottom: a ? `3px solid ${P.coral}` : '3px solid transparent', whiteSpace: 'nowrap', borderRadius: a ? '8px 8px 0 0' : '0' }),
     main:  { maxWidth: '1200px', margin: '0 auto', padding: '28px 24px' },
     card:  { background: 'white', border: `1px solid ${P.border}`, borderRadius: '20px', padding: '24px', marginBottom: '20px', boxShadow: '0 2px 12px rgba(251,113,133,0.06)' },
     label: { display: 'block', fontSize: '13px', fontWeight: 600, color: P.muted, marginBottom: '5px' },
@@ -360,62 +476,40 @@ Asking: ${price}
 
   return (
     <div style={s.app}>
-      {/* ── Confetti ── */}
       <Confetti active={confetti} />
 
-      {/* ── Affirmation overlay ── */}
+      {/* Affirmation overlay */}
       {affirmation && (
-        <div key={affirmation.key} style={{
-          position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)',
-          background: 'linear-gradient(135deg, #fb7185, #c084fc)',
-          color: 'white', borderRadius: '20px', padding: '18px 28px',
-          fontSize: '16px', fontWeight: 700, textAlign: 'center',
-          boxShadow: '0 8px 32px rgba(251,113,133,0.4)',
-          zIndex: 9000, maxWidth: '420px', width: 'calc(100% - 48px)',
-          animation: 'fadeInDown 0.4s ease, fadeOutUp 0.4s ease 2.8s forwards',
-        }}>
+        <div key={affirmation.key} style={{ position: 'fixed', top: '80px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg,#fb7185,#c084fc)', color: 'white', borderRadius: '20px', padding: '18px 28px', fontSize: '16px', fontWeight: 700, textAlign: 'center', boxShadow: '0 8px 32px rgba(251,113,133,0.4)', zIndex: 9000, maxWidth: '420px', width: 'calc(100% - 48px)', animation: 'fadeInDown 0.4s ease, fadeOutUp 0.4s ease 2.8s forwards' }}>
           {affirmation.text}
         </div>
       )}
 
-      {/* ── Milestone overlay ── */}
+      {/* Milestone overlay */}
       {milestone && (
-        <div style={{
-          position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 9500, pointerEvents: 'none',
-        }}>
-          <div style={{
-            background: 'linear-gradient(135deg, #fff7ed, #fdf2f8, #faf5ff)',
-            border: `3px solid ${P.gold}`,
-            borderRadius: '24px', padding: '36px 48px', textAlign: 'center',
-            boxShadow: '0 20px 60px rgba(245,158,11,0.3)',
-            maxWidth: '440px',
-          }}>
+        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9500, pointerEvents: 'none' }}>
+          <div style={{ background: 'linear-gradient(135deg,#fff7ed,#fdf2f8,#faf5ff)', border: `3px solid ${P.gold}`, borderRadius: '24px', padding: '36px 48px', textAlign: 'center', boxShadow: '0 20px 60px rgba(245,158,11,0.3)', maxWidth: '440px' }}>
             <div style={{ fontSize: '56px', marginBottom: '12px' }}>{milestone.emoji}</div>
             <div style={{ fontSize: '20px', fontWeight: 800, color: P.amber, lineHeight: 1.3 }}>{milestone.msg}</div>
           </div>
         </div>
       )}
 
-      {/* ── CSS animations ── */}
       <style>{`
         @keyframes fadeInDown { from { opacity:0; transform:translate(-50%,-20px) } to { opacity:1; transform:translate(-50%,0) } }
         @keyframes fadeOutUp  { from { opacity:1 } to { opacity:0; transform:translate(-50%,-20px) } }
-        @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.7 } }
+        @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
       `}</style>
 
-      {/* ── HEADER ── */}
-      <header style={{ background: 'linear-gradient(135deg, #fb7185 0%, #c084fc 50%, #60a5fa 100%)', color: 'white', padding: '0' }}>
-        {/* Daily affirmation strip */}
+      {/* HEADER */}
+      <header style={{ background: 'linear-gradient(135deg,#fb7185 0%,#c084fc 50%,#60a5fa 100%)', color: 'white', padding: 0 }}>
         <div style={{ background: 'rgba(255,255,255,0.15)', padding: '8px 28px', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
           ✨ {dailyAffirmation}
         </div>
         <div style={{ padding: '18px 28px', display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '26px', fontWeight: 900, letterSpacing: '-0.5px' }}>Soltar</h1>
-            <p style={{ margin: 0, fontSize: '12px', opacity: 0.85, letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: '2px' }}>
-              release · bloom · abound
-            </p>
+            <p style={{ margin: 0, fontSize: '12px', opacity: 0.85, letterSpacing: '0.15em', textTransform: 'uppercase', marginTop: '2px' }}>release · bloom · abound</p>
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div style={{ fontSize: '13px', opacity: 0.9, fontWeight: 600 }}>Alejandra</div>
@@ -425,9 +519,17 @@ Asking: ${price}
         </div>
       </header>
 
-      {/* ── NAV ── */}
+      {/* NAV */}
       <nav style={s.nav}>
-        {[['dashboard','🌸 Dashboard'],['items','📦 All Items'],['add','✨ Add Item'],['poshmark','👗 Poshmark'],['rules','💸 My Rules & Money']].map(([key, label]) => (
+        {[
+          ['dashboard','🌸 Dashboard'],
+          ['inventory','🗂 My Inventory'],
+          ['items','📦 All Items'],
+          ['add','✨ Add Item'],
+          ['pantry','🍳 Pantry'],
+          ['poshmark','👗 Poshmark'],
+          ['rules','💸 Rules & Money'],
+        ].map(([key, label]) => (
           <button key={key} style={s.navBtn(tab === key)} onClick={() => setTab(key)}>{label}</button>
         ))}
       </nav>
@@ -447,8 +549,7 @@ Asking: ${price}
             <div style={{ fontSize: '12px', fontWeight: 700, color: P.lavender, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>🌷 Monthly Intention</div>
             <textarea value={intention} onChange={e => setIntention(e.target.value)}
               placeholder="What's your intention this month? e.g. April — use up all pantry items before buying new food"
-              style={{ ...s.input, height: '68px', resize: 'none', fontStyle: intention ? 'normal' : 'italic' }}
-            />
+              style={{ ...s.input, height: '68px', resize: 'none', fontStyle: intention ? 'normal' : 'italic' }} />
             <button onClick={saveIntention} style={{ ...s.btn(P.lavender), marginTop: '10px', fontSize: '13px', padding: '8px 16px' }}>
               {intentionSaved ? '✓ Saved!' : 'Save Intention'}
             </button>
@@ -477,13 +578,39 @@ Asking: ${price}
           </div>
 
           {/* Stat grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px,1fr))', gap: '14px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: '14px', marginBottom: '20px' }}>
             <StatBox emoji="📦" label="Total Items"    value={total} />
             <StatBox emoji="🚀" label="Released"       value={released.length} color={P.emerald} sub={total ? goalPct + '% of inventory' : ''} />
             <StatBox emoji="💰" label="Recovered"      value={'$' + moneyRecovered.toLocaleString()} gold />
             <StatBox emoji="💸" label="Left on Table"  value={'$' + moneyLeftOnTable.toLocaleString()} gold sub="orig – sell" />
             <StatBox emoji="💜" label="Avg Attachment" value={avgEA} color={P.lavender} sub="of released" />
             <StatBox emoji="👗" label="Poshmark"       value={poshmarkQueue.length} color={P.coral} sub="in queue" />
+          </div>
+
+          {/* ── Category breakdown (top 8) ── */}
+          <div style={s.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ ...s.sectionTitle, margin: 0 }}>By Category 🗂</h2>
+              <button onClick={() => setTab('inventory')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: P.coral, fontWeight: 600 }}>See all →</button>
+            </div>
+            {catCountsSorted.length === 0
+              ? <div style={{ color: P.muted, fontSize: '13px', textAlign: 'center', padding: '16px 0' }}>Add items to see category breakdown</div>
+              : catCountsSorted.slice(0, 8).map(([cat, cnt], i) => {
+                  const pct    = total ? Math.round(cnt / total * 100) : 0
+                  const color  = catColorMap[cat] || CAT_COLORS[i % CAT_COLORS.length]
+                  const isGold = i === 0
+                  return (
+                    <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                      <div style={{ width: '130px', fontSize: '13px', fontWeight: 600, color: isGold ? P.amber : P.text, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</div>
+                      <div style={{ flex: 1, background: P.border, borderRadius: '999px', height: '14px' }}>
+                        <div style={{ background: isGold ? `linear-gradient(90deg,${P.gold},${P.amber})` : color, width: pct + '%', height: '100%', borderRadius: '999px', transition: 'width 0.4s ease', minWidth: cnt > 0 ? '6px' : '0' }} />
+                      </div>
+                      <div style={{ width: '70px', fontSize: '12px', color: P.muted, textAlign: 'right', flexShrink: 0 }}>
+                        <span style={{ fontWeight: 700, color: isGold ? P.amber : P.text }}>{cnt}</span> · {pct}%
+                      </div>
+                    </div>
+                  )
+                })}
           </div>
 
           {/* Exit paths */}
@@ -532,7 +659,7 @@ Asking: ${price}
                   </div>}
             </div>
             <div style={s.card}>
-              <h2 style={s.sectionTitle}>Top Categories 🏆</h2>
+              <h2 style={s.sectionTitle}>Top Released Categories 🏆</h2>
               {mostReleasedCat
                 ? <>
                     <div style={{ fontSize: '30px', fontWeight: 800, color: P.emerald }}>{mostReleasedCat[1]}</div>
@@ -548,6 +675,158 @@ Asking: ${price}
             </div>
           </div>
         </>)}
+
+        {/* ══════════════ MY INVENTORY ══════════════ */}
+        {tab === 'inventory' && (<>
+          <div style={{ ...s.card, background: 'linear-gradient(135deg,#fdf2f8,#faf5ff)' }}>
+            <h2 style={{ ...s.sectionTitle, fontSize: '20px', marginBottom: '4px' }}>🗂 My Inventory</h2>
+            <p style={{ margin: '0 0 0', fontSize: '13px', color: P.muted }}>{total} items across {catCountsSorted.length} categories</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {/* Donut chart */}
+            <div style={{ ...s.card, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <h2 style={{ ...s.sectionTitle, alignSelf: 'flex-start' }}>What makes up your stuff?</h2>
+              <DonutChart
+                size={280}
+                data={catCountsSorted.map(([cat, cnt]) => ({ label: cat, count: cnt, color: catColorMap[cat] }))}
+              />
+              {invCatFilter && (
+                <button onClick={() => setInvCatFilter(null)} style={{ ...s.btn('#e2e8f0', P.text), marginTop: '12px', fontSize: '13px', padding: '6px 14px' }}>
+                  ✕ Clear filter: {invCatFilter}
+                </button>
+              )}
+            </div>
+
+            {/* Legend + bars */}
+            <div style={s.card}>
+              <h2 style={{ ...s.sectionTitle, marginBottom: '12px' }}>Click a category to filter</h2>
+              <div style={{ maxHeight: '380px', overflowY: 'auto', paddingRight: '4px' }}>
+                {catCountsSorted.map(([cat, cnt], i) => {
+                  const pct    = total ? Math.round(cnt / total * 100) : 0
+                  const color  = catColorMap[cat]
+                  const isTop  = i === 0
+                  const active = invCatFilter === cat
+                  return (
+                    <div key={cat} onClick={() => setInvCatFilter(active ? null : cat)}
+                      style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', cursor: 'pointer', padding: '6px 8px', borderRadius: '10px', background: active ? color + '18' : 'transparent', border: `1.5px solid ${active ? color : 'transparent'}`, transition: 'all 0.15s' }}>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: isTop ? P.amber : P.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</span>
+                          <span style={{ fontSize: '12px', color: P.muted, marginLeft: '8px', flexShrink: 0 }}>{cnt} · {pct}%</span>
+                        </div>
+                        <div style={{ background: P.border, borderRadius: '999px', height: '6px' }}>
+                          <div style={{ background: isTop ? `linear-gradient(90deg,${P.gold},${P.amber})` : color, width: pct + '%', height: '100%', borderRadius: '999px' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Filtered item list */}
+          {invCatFilter && (
+            <div style={s.card}>
+              <h2 style={{ ...s.sectionTitle, color: catColorMap[invCatFilter] }}>
+                {invCatFilter} — {invItems.length} items
+              </h2>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead><tr>{['Name','Decision','Location','Condition','EA'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {invItems.map(item => (
+                      <tr key={item.id}>
+                        <td style={s.td}><strong>{item.name}</strong></td>
+                        <td style={s.td}>
+                          <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '8px', background: DECISION_BG[item.decision], color: DECISION_COLORS[item.decision], fontWeight: 700 }}>{item.decision}</span>
+                        </td>
+                        <td style={s.td}>{item.location || '—'}</td>
+                        <td style={s.td}>{item.condition || '—'}</td>
+                        <td style={s.td}>{item.emotional_attachment ? '⭐'.repeat(item.emotional_attachment) : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>)}
+
+        {/* ══════════════ ALL ITEMS ══════════════ */}
+        {tab === 'items' && (
+          <div style={s.card}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, ...s.sectionTitle, marginRight: 'auto' }}>📦 All Items ({filteredItems.length})</h2>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <input style={{ ...s.input, flex: '1', minWidth: '180px' }} value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search name, category, location..." />
+              <select style={{ ...s.select, width: 'auto' }} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+                <option value="All">All Categories</option>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '7px', marginBottom: '16px', flexWrap: 'wrap' }}>
+              {['All', ...DECISIONS].map(d => {
+                const count  = d === 'All' ? items.length : items.filter(i => i.decision === d).length
+                const active = filterDecision === d
+                return (
+                  <button key={d} onClick={() => setFilterDecision(d)} style={{ padding: '5px 12px', border: `1.5px solid ${active ? (DECISION_COLORS[d] || P.coral) : P.border}`, borderRadius: '999px', background: active ? (DECISION_BG[d] || '#fff1f2') : 'white', color: active ? (DECISION_COLORS[d] || P.coral) : P.muted, cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
+                    {d} ({count})
+                  </button>
+                )
+              })}
+            </div>
+            {filteredItems.length === 0
+              ? <div style={{ textAlign: 'center', padding: '48px', color: P.muted }}><div style={{ fontSize: '40px', marginBottom: '12px' }}>🌸</div>No items found.</div>
+              : <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead><tr>{['Name','Category','Brand','Size','Condition','Decision','🌸','EA',''].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {filteredItems.map(item => (<>
+                        <tr key={item.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)}>
+                          <td style={s.td}><strong>{item.name}</strong></td>
+                          <td style={s.td}><span style={{ fontSize: '11px', background: P.border, padding: '2px 8px', borderRadius: '8px' }}>{item.category}</span></td>
+                          <td style={s.td}>{item.brand || '—'}</td>
+                          <td style={s.td}>{item.size || '—'}</td>
+                          <td style={s.td}>{item.condition || '—'}</td>
+                          <td style={s.td} onClick={e => e.stopPropagation()}>
+                            <select value={item.decision} onChange={e => updateField(item.id, 'decision', e.target.value)} style={{ padding: '4px 8px', border: `1.5px solid ${DECISION_COLORS[item.decision]}`, borderRadius: '8px', background: DECISION_BG[item.decision], color: DECISION_COLORS[item.decision], fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                              {DECISIONS.map(d => <option key={d}>{d}</option>)}
+                            </select>
+                          </td>
+                          <td style={s.td} onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={!!item.poshmark} onChange={e => updateField(item.id, 'poshmark', e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: P.coral }} />
+                          </td>
+                          <td style={s.td}>{item.emotional_attachment ? '⭐'.repeat(item.emotional_attachment) : '—'}</td>
+                          <td style={s.td} onClick={e => e.stopPropagation()}>
+                            <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: P.coral, fontSize: '16px' }}>🗑️</button>
+                          </td>
+                        </tr>
+                        {expandedItem === item.id && (
+                          <tr key={item.id + '-exp'}>
+                            <td colSpan={9} style={{ padding: '14px 16px', background: '#fffbfb', borderBottom: `1px solid ${P.border}` }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '10px', fontSize: '13px' }}>
+                                {item.original_price  && <div><span style={{ color: P.muted }}>Original:</span> <strong style={{ color: P.amber }}>${parseFloat(item.original_price).toFixed(2)}</strong></div>}
+                                {item.asking_price    && <div><span style={{ color: P.muted }}>Asking:</span>   <strong style={{ color: P.amber }}>${parseFloat(item.asking_price).toFixed(2)}</strong></div>}
+                                {item.how_acquired    && <div><span style={{ color: P.muted }}>Acquired:</span> <strong>{item.how_acquired}</strong></div>}
+                                {item.date_acquired   && <div><span style={{ color: P.muted }}>When:</span>     <strong>{item.date_acquired}</strong></div>}
+                                {item.location        && <div><span style={{ color: P.muted }}>Location:</span> <strong>{item.location}</strong></div>}
+                                {item.color           && <div><span style={{ color: P.muted }}>Color:</span>    <strong>{item.color}</strong></div>}
+                                {item.date_resolved   && <div><span style={{ color: P.muted }}>Left home:</span><strong>{item.date_resolved}</strong></div>}
+                                {item.flaws           && <div style={{ gridColumn: '1/-1' }}><span style={{ color: P.muted }}>Flaws:</span> <strong>{item.flaws}</strong></div>}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>))}
+                    </tbody>
+                  </table>
+                </div>}
+          </div>
+        )}
 
         {/* ══════════════ ADD ITEM ══════════════ */}
         {tab === 'add' && (
@@ -577,10 +856,7 @@ Asking: ${price}
               <div style={{ background: '#fffbfb', borderRadius: '14px', padding: '16px', marginBottom: '16px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: P.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>Optional Details</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={s.label}>Location</label>
-                    <input style={s.input} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Bedroom closet" />
-                  </div>
+                  <div><label style={s.label}>Location</label><input style={s.input} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. Bedroom closet" /></div>
                   <div>
                     <label style={s.label}>How Acquired</label>
                     <select style={s.select} value={form.how_acquired} onChange={e => setForm({ ...form, how_acquired: e.target.value })}>
@@ -588,15 +864,9 @@ Asking: ${price}
                       {HOW_ACQUIRED.map(h => <option key={h}>{h}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label style={s.label}>Date Acquired (MM/YYYY)</label>
-                    <input style={s.input} value={form.date_acquired} onChange={e => setForm({ ...form, date_acquired: e.target.value })} placeholder="e.g. 03/2022" />
-                  </div>
+                  <div><label style={s.label}>Date Acquired (MM/YYYY)</label><input style={s.input} value={form.date_acquired} onChange={e => setForm({ ...form, date_acquired: e.target.value })} placeholder="e.g. 03/2022" /></div>
                   {shouldHaveDateResolved(form.decision) && (
-                    <div>
-                      <label style={s.label}>Date Left Home</label>
-                      <input style={s.input} type="date" value={form.date_resolved} onChange={e => setForm({ ...form, date_resolved: e.target.value })} />
-                    </div>
+                    <div><label style={s.label}>Date Left Home</label><input style={s.input} type="date" value={form.date_resolved} onChange={e => setForm({ ...form, date_resolved: e.target.value })} /></div>
                   )}
                   <div style={{ gridColumn: '1/-1' }}>
                     <label style={s.label}>Emotional Attachment: {form.emotional_attachment}/5</label>
@@ -642,79 +912,106 @@ Asking: ${price}
           </div>
         )}
 
-        {/* ══════════════ ALL ITEMS ══════════════ */}
-        {tab === 'items' && (
-          <div style={s.card}>
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, ...s.sectionTitle, marginRight: 'auto' }}>📦 All Items ({filteredItems.length})</h2>
+        {/* ══════════════ PANTRY ══════════════ */}
+        {tab === 'pantry' && (<>
+          {/* Header stats */}
+          <div style={{ ...s.card, background: 'linear-gradient(135deg,#fffbeb,#f0fdf4)', border: `1.5px solid ${P.gold}30` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2 style={{ ...s.sectionTitle, margin: 0, fontSize: '20px' }}>🍳 My Pantry</h2>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: P.muted }}>{pantryItems.length} pantry items inventoried</p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: P.emerald }}>{pantryMeals.length}</div>
+                <div style={{ fontSize: '13px', color: P.muted, fontWeight: 600 }}>meals made from what I own · <span style={{ color: P.amber }}>$0 spent 💛</span></div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap' }}>
-              <input style={{ ...s.input, flex: '1', minWidth: '180px' }} value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search name, category, location..." />
-              <select style={{ ...s.select, width: 'auto' }} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
-                <option value="All">All Categories</option>
-                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: '7px', marginBottom: '16px', flexWrap: 'wrap' }}>
-              {['All', ...DECISIONS].map(d => {
-                const count  = d === 'All' ? items.length : items.filter(i => i.decision === d).length
-                const active = filterDecision === d
-                return (
-                  <button key={d} onClick={() => setFilterDecision(d)} style={{ padding: '5px 12px', border: `1.5px solid ${active ? (DECISION_COLORS[d] || P.coral) : P.border}`, borderRadius: '999px', background: active ? (DECISION_BG[d] || '#fff1f2') : 'white', color: active ? (DECISION_COLORS[d] || P.coral) : P.muted, cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
-                    {d} ({count})
-                  </button>
-                )
-              })}
+          </div>
+
+          {/* Plan a Meal button */}
+          <div style={{ ...s.card }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: mealSuggestions.length || mealLoading || mealError ? '20px' : '0' }}>
+              <div>
+                <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '3px' }}>What can I make right now? 🌿</div>
+                <div style={{ fontSize: '13px', color: P.muted }}>Claude will look at your pantry and suggest 3 meals you can make today.</div>
+              </div>
+              <button
+                onClick={() => generateMeals(pantryItems)}
+                disabled={mealLoading || pantryItems.length === 0}
+                style={{ ...s.btn(pantryItems.length === 0 ? '#e2e8f0' : `linear-gradient(135deg,${P.gold},${P.emerald})`), color: pantryItems.length === 0 ? P.muted : 'white', display: 'flex', alignItems: 'center', gap: '8px', minWidth: '160px', justifyContent: 'center' }}>
+                {mealLoading
+                  ? <><span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Thinking...</>
+                  : '🍳 Plan a Meal'}
+              </button>
             </div>
 
-            {filteredItems.length === 0
-              ? <div style={{ textAlign: 'center', padding: '48px', color: P.muted }}><div style={{ fontSize: '40px', marginBottom: '12px' }}>🌸</div>No items found.</div>
-              : <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead><tr>{['Name','Category','Brand','Size','Condition','Decision','🌸','EA',''].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {filteredItems.map(item => (<>
-                        <tr key={item.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)}>
-                          <td style={s.td}><strong>{item.name}</strong></td>
-                          <td style={s.td}><span style={{ fontSize: '11px', background: P.border, padding: '2px 8px', borderRadius: '8px' }}>{item.category}</span></td>
-                          <td style={s.td}>{item.brand || '—'}</td>
-                          <td style={s.td}>{item.size || '—'}</td>
-                          <td style={s.td}>{item.condition || '—'}</td>
-                          <td style={s.td} onClick={e => e.stopPropagation()}>
-                            <select value={item.decision} onChange={e => updateField(item.id, 'decision', e.target.value)} style={{ padding: '4px 8px', border: `1.5px solid ${DECISION_COLORS[item.decision]}`, borderRadius: '8px', background: DECISION_BG[item.decision], color: DECISION_COLORS[item.decision], fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                              {DECISIONS.map(d => <option key={d}>{d}</option>)}
-                            </select>
-                          </td>
-                          <td style={s.td} onClick={e => e.stopPropagation()}>
-                            <input type="checkbox" checked={!!item.poshmark} onChange={e => updateField(item.id, 'poshmark', e.target.checked)} style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: P.coral }} />
-                          </td>
-                          <td style={s.td}>{item.emotional_attachment ? '⭐'.repeat(item.emotional_attachment) : '—'}</td>
-                          <td style={s.td} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: P.coral, fontSize: '16px' }}>🗑️</button>
-                          </td>
-                        </tr>
-                        {expandedItem === item.id && (
-                          <tr key={item.id + '-exp'}>
-                            <td colSpan={9} style={{ padding: '14px 16px', background: '#fffbfb', borderBottom: `1px solid ${P.border}` }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: '10px', fontSize: '13px' }}>
-                                {item.original_price && <div><span style={{ color: P.muted }}>Original:</span> <strong style={{ color: P.amber }}>${parseFloat(item.original_price).toFixed(2)}</strong></div>}
-                                {item.asking_price   && <div><span style={{ color: P.muted }}>Asking:</span>   <strong style={{ color: P.amber }}>${parseFloat(item.asking_price).toFixed(2)}</strong></div>}
-                                {item.how_acquired   && <div><span style={{ color: P.muted }}>Acquired:</span> <strong>{item.how_acquired}</strong></div>}
-                                {item.date_acquired  && <div><span style={{ color: P.muted }}>When:</span>     <strong>{item.date_acquired}</strong></div>}
-                                {item.location       && <div><span style={{ color: P.muted }}>Location:</span> <strong>{item.location}</strong></div>}
-                                {item.color          && <div><span style={{ color: P.muted }}>Color:</span>    <strong>{item.color}</strong></div>}
-                                {item.date_resolved  && <div><span style={{ color: P.muted }}>Left home:</span><strong>{item.date_resolved}</strong></div>}
-                                {item.flaws          && <div style={{ gridColumn: '1/-1' }}><span style={{ color: P.muted }}>Flaws:</span> <strong>{item.flaws}</strong></div>}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>))}
-                    </tbody>
-                  </table>
-                </div>}
+            {mealError && <div style={{ color: '#e11d48', background: '#fff1f2', borderRadius: '10px', padding: '12px', fontSize: '13px', marginBottom: '16px' }}>⚠️ {mealError}</div>}
+
+            {/* Meal suggestions */}
+            {mealSuggestions.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: '16px' }}>
+                {mealSuggestions.map((meal, i) => (
+                  <div key={i} style={{ border: `1.5px solid ${[P.gold, P.emerald, P.lavender][i]}40`, borderRadius: '16px', padding: '20px', background: `linear-gradient(135deg,${[P.gold, P.emerald, P.lavender][i]}08,white)` }}>
+                    <div style={{ fontSize: '18px', fontWeight: 800, color: [P.amber, P.emerald, P.lavender][i], marginBottom: '6px' }}>{meal.name}</div>
+                    <div style={{ fontSize: '12px', color: P.muted, marginBottom: '10px' }}>⏱ {meal.prep_time}</div>
+                    <div style={{ fontSize: '13px', color: P.muted, fontStyle: 'italic', marginBottom: '12px' }}>"{meal.encouragement}"</div>
+                    <div style={{ marginBottom: '14px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: P.text, marginBottom: '6px' }}>Ingredients you have:</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {(meal.ingredients || []).map((ing, j) => (
+                          <span key={j} style={{ fontSize: '12px', background: [P.gold, P.emerald, P.lavender][i] + '15', color: [P.amber, P.emerald, P.lavender][i], padding: '3px 8px', borderRadius: '999px', fontWeight: 600 }}>{ing}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={() => logMeal(meal.name)} style={{ ...s.btn([P.gold, P.emerald, P.lavender][i]), width: '100%', fontSize: '13px' }}>
+                      🌺 I made this!
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Recent meals log */}
+          {pantryMeals.length > 0 && (
+            <div style={s.card}>
+              <h2 style={s.sectionTitle}>Meals Made from My Pantry 🌺</h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {pantryMeals.slice(0, 10).map(m => (
+                  <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fffbeb', borderRadius: '10px', fontSize: '14px' }}>
+                    <span style={{ fontWeight: 600 }}>🍽 {m.meal_name}</span>
+                    <span style={{ color: P.muted, fontSize: '12px' }}>{new Date(m.cooked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pantry items grouped by category */}
+          {Object.entries(pantryByCategory).map(([cat, catItems]) => (
+            <div key={cat} style={{ ...s.card, marginBottom: '16px' }}>
+              <h3 style={{ ...s.sectionTitle, fontSize: '14px', color: catColorMap[cat] || P.amber, marginBottom: '12px' }}>
+                {cat} · <span style={{ color: P.muted, fontWeight: 500 }}>{catItems.length} items</span>
+              </h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {catItems.map(item => (
+                  <div key={item.id} style={{ background: (catColorMap[cat] || P.gold) + '12', border: `1px solid ${(catColorMap[cat] || P.gold)}30`, borderRadius: '10px', padding: '8px 12px', fontSize: '13px' }}>
+                    <div style={{ fontWeight: 600 }}>{item.name}</div>
+                    {item.location && <div style={{ fontSize: '11px', color: P.muted, marginTop: '2px' }}>{item.location}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {pantryItems.length === 0 && (
+            <div style={{ ...s.card, textAlign: 'center', padding: '48px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '12px' }}>🥫</div>
+              <div style={{ fontWeight: 600, color: P.text, marginBottom: '6px' }}>No pantry items yet</div>
+              <div style={{ fontSize: '13px', color: P.muted }}>Add items in categories: Canned Food, Dry Goods & Pantry, Seasonings, Cooking Oils, Kitchen, or Kitchen Tools</div>
+            </div>
+          )}
+        </>)}
 
         {/* ══════════════ POSHMARK ══════════════ */}
         {tab === 'poshmark' && (
@@ -729,9 +1026,9 @@ Asking: ${price}
                       <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '6px' }}>{item.brand ? `${item.brand} ` : ''}{item.name}</div>
                       <div style={{ fontSize: '13px', color: P.muted, display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '14px' }}>
                         <span>📦 {item.category}{item.condition ? ` · ${item.condition}` : ''}</span>
-                        {item.size  && <span>📐 {item.size}</span>}
+                        {item.size && <span>📐 {item.size}</span>}
                         {item.color && <span>🎨 {item.color}</span>}
-                        {item.asking_price   && <span style={{ color: P.amber, fontWeight: 700 }}>💰 ${parseFloat(item.asking_price).toFixed(2)}</span>}
+                        {item.asking_price && <span style={{ color: P.amber, fontWeight: 700 }}>💰 ${parseFloat(item.asking_price).toFixed(2)}</span>}
                         {item.original_price && <span style={{ color: P.muted }}>Orig. ${parseFloat(item.original_price).toFixed(2)}</span>}
                         {item.flaws && <span>📝 {item.flaws}</span>}
                       </div>
@@ -749,7 +1046,7 @@ Asking: ${price}
               <h2 style={{ ...s.sectionTitle, color: P.emerald }}>✅ Allowed</h2>
               {['Experiences and events','Races and race fees','Race gear','Replacement items (one in, one out)','Essentials fully used up','Event clothing that can be reworn','Groceries','Toiletries','Gas'].map(r => (
                 <div key={r} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: `1px solid ${P.border}`, fontSize: '14px' }}>
-                  <span style={{ color: P.emerald }}>✓</span> {r}
+                  <span style={{ color: P.emerald }}>✓</span>{r}
                 </div>
               ))}
             </div>
@@ -757,7 +1054,7 @@ Asking: ${price}
               <h2 style={{ ...s.sectionTitle, color: P.coral }}>🚫 Not Allowed</h2>
               {['Impulse purchases','New clothes unless replacing','New subscriptions','Amazon purchases','TikTok Shop','New food until pantry is used up','Uber/Lyft (use CTA)','Eating out over $150/month'].map(r => (
                 <div key={r} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: `1px solid ${P.border}`, fontSize: '14px' }}>
-                  <span style={{ color: P.coral }}>✗</span> {r}
+                  <span style={{ color: P.coral }}>✗</span>{r}
                 </div>
               ))}
             </div>
@@ -815,7 +1112,7 @@ Asking: ${price}
         </>)}
       </main>
 
-      {/* ── Listing Modal ── */}
+      {/* Listing Modal */}
       {listingModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(61,44,44,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '20px', padding: '28px', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(251,113,133,0.2)' }}>
