@@ -10,7 +10,7 @@ const CATEGORIES = [
   'House Misc', 'Clothes Accessories', 'Kitchen', 'Cooking Oils', 'Kitchen Tools',
   'Garage', 'Car & Auto', 'Sports & Outdoor', 'Garden & Outdoor Living',
   'Stationery', 'Wellness & Supplements', 'Books', 'Office Supplies',
-  'Furniture', 'Dry Goods & Pantry',
+  'Furniture', 'Dry Goods & Pantry', 'Collectibles',
 ]
 
 const PANTRY_CATEGORIES = ['Canned Food', 'Dry Goods & Pantry', 'Seasonings', 'Cooking Oils', 'Kitchen', 'Kitchen Tools']
@@ -84,6 +84,7 @@ const emptyForm = {
   original_price: '', date_resolved: '',
   brand: '', size: '', color: '', condition: '',
   asking_price: '', flaws: '',
+  quantity: 1,
 }
 
 const DEBT = [
@@ -213,6 +214,20 @@ export default function App() {
   const [mealSuggestions,setMealSuggestions]= useState([])
   const [mealLoading,    setMealLoading]    = useState(false)
   const [mealError,      setMealError]      = useState(null)
+  // Quick-add overlay
+  const [quickAddOpen,    setQuickAddOpen]    = useState(false)
+  const [quickAddForm,    setQuickAddForm]    = useState({ name: '', category: 'Clothes', decision: 'Undecided' })
+  const [quickAddLoading, setQuickAddLoading] = useState(false)
+  // Voice bulk import
+  const [voiceText,       setVoiceText]       = useState('')
+  const [voiceItems,      setVoiceItems]      = useState(null)
+  const [voiceLoading,    setVoiceLoading]    = useState(false)
+  const [voiceError,      setVoiceError]      = useState(null)
+  // Receipt scanner
+  const [receiptFile,     setReceiptFile]     = useState(null)
+  const [receiptItems,    setReceiptItems]    = useState(null)
+  const [receiptLoading,  setReceiptLoading]  = useState(false)
+  const [receiptError,    setReceiptError]    = useState(null)
 
   // Day counter
   useEffect(() => {
@@ -288,6 +303,121 @@ export default function App() {
     setMealLoading(false)
   }
 
+  async function quickAddItem() {
+    if (!quickAddForm.name.trim()) return
+    setQuickAddLoading(true)
+    const { error } = await supabase.from('items').insert([{
+      name: quickAddForm.name.trim(),
+      category: quickAddForm.category,
+      decision: quickAddForm.decision,
+    }])
+    if (!error) {
+      setQuickAddOpen(false)
+      setQuickAddForm({ name: '', category: 'Clothes', decision: 'Undecided' })
+      const { data } = await supabase.from('items').select('*').order('created_at', { ascending: false })
+      const next = data || []
+      setItems(next)
+      checkMilestones(next)
+    }
+    setQuickAddLoading(false)
+  }
+
+  async function quickStatus(id, decision, extraFields = {}) {
+    const today = new Date().toISOString().split('T')[0]
+    const updates = { decision, updated_at: new Date().toISOString(), ...extraFields }
+    if (shouldHaveDateResolved(decision)) updates.date_resolved = today
+    await supabase.from('items').update(updates).eq('id', id)
+    const next = items.map(i => i.id === id ? { ...i, ...updates } : i)
+    setItems(next)
+    showAffirmation()
+    checkMilestones(next)
+  }
+
+  async function duplicateItem(item) {
+    const { id, created_at, updated_at, ...rest } = item
+    await supabase.from('items').insert([rest])
+    const { data } = await supabase.from('items').select('*').order('created_at', { ascending: false })
+    setItems(data || [])
+  }
+
+  async function bulkInsert(parsedItems, onDone) {
+    const rows = parsedItems.map(({ name, category, decision, estimated_value }) => ({
+      name: name || 'Unknown',
+      category: CATEGORIES.includes(category) ? category : 'House Misc',
+      decision: DECISIONS.includes(decision) ? decision : 'Undecided',
+      estimated_value: estimated_value ? parseFloat(estimated_value) : null,
+    }))
+    await supabase.from('items').insert(rows)
+    const { data } = await supabase.from('items').select('*').order('created_at', { ascending: false })
+    const next = data || []
+    setItems(next)
+    checkMilestones(next)
+    if (onDone) onDone()
+  }
+
+  async function parseVoiceText() {
+    if (!voiceText.trim()) return
+    setVoiceLoading(true)
+    setVoiceError(null)
+    setVoiceItems(null)
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          system: 'Parse this spoken inventory list and return a JSON array of items. Each item should have: name, category (match to one of these exactly: Bedroom, Clothes, Shoes, Purses, Makeup, Skincare, Hair Products, Hair Tools, Body Hygiene, Home Cleaning, Tools, Canned Food, Seasonings, Crafts, Tech, House Misc, Clothes Accessories, Kitchen, Cooking Oils, Kitchen Tools, Furniture, Dry Goods & Pantry, Sports & Outdoor, Garden & Outdoor Living, Garage, Car & Auto, Stationery, Wellness & Supplements, Books, Office Supplies, Collectibles), decision (default to Undecided), quantity (default 1). Return only valid JSON array, no other text, no markdown.',
+          messages: [{ role: 'user', content: voiceText }],
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const json = await res.json()
+      const raw  = json.content?.[0]?.text || ''
+      const match = raw.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('Could not parse items from text')
+      setVoiceItems(JSON.parse(match[0]))
+    } catch (e) { setVoiceError('Could not parse: ' + e.message) }
+    setVoiceLoading(false)
+  }
+
+  async function parseReceipt(file) {
+    if (!file) return
+    setReceiptLoading(true)
+    setReceiptError(null)
+    setReceiptItems(null)
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = e => resolve(e.target.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const mediaType = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg'
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'This is a shopping receipt. Extract every line item purchased and return a JSON array. Each item should have: name (clean product name only), category (match to one of these exactly: Bedroom, Clothes, Shoes, Purses, Makeup, Skincare, Hair Products, Hair Tools, Body Hygiene, Home Cleaning, Tools, Canned Food, Seasonings, Crafts, Tech, House Misc, Clothes Accessories, Kitchen, Cooking Oils, Kitchen Tools, Furniture, Dry Goods & Pantry, Sports & Outdoor, Garden & Outdoor Living, Garage, Car & Auto, Stationery, Wellness & Supplements, Books, Office Supplies, Collectibles), estimated_value (use price from receipt as a number), decision (default to Keep), quantity (default 1). Return only valid JSON array, no other text, no markdown.' },
+          ]}],
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const json = await res.json()
+      const raw  = json.content?.[0]?.text || ''
+      const match = raw.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('Could not parse receipt items')
+      setReceiptItems(JSON.parse(match[0]))
+    } catch (e) { setReceiptError('Could not parse receipt: ' + e.message) }
+    setReceiptLoading(false)
+  }
+
   function shouldHaveDateResolved(decision) {
     return ['Sell', 'Donate', 'Toss'].includes(decision)
   }
@@ -330,7 +460,9 @@ export default function App() {
       condition: form.poshmark ? (form.condition || null): null,
       flaws:     form.poshmark ? form.flaws              : null,
     }
-    const { error } = await supabase.from('items').insert([payload])
+    const qty = Math.max(1, parseInt(form.quantity) || 1)
+    const rows = Array.from({ length: qty }, () => ({ ...payload }))
+    const { error } = await supabase.from('items').insert(rows)
     if (error) { setError(error.message) } else {
       if (shouldHaveDateResolved(form.decision)) showAffirmation()
       setForm(emptyForm)
@@ -783,11 +915,14 @@ Asking: ${price}
               ? <div style={{ textAlign: 'center', padding: '48px', color: P.muted }}><div style={{ fontSize: '40px', marginBottom: '12px' }}>🌸</div>No items found.</div>
               : <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                    <thead><tr>{['Name','Category','Brand','Size','Condition','Decision','🌸','EA',''].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+                    <thead><tr>{['Name','Category','Brand','Size','Condition','Decision','🌸','EA','Actions'].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
                     <tbody>
                       {filteredItems.map(item => (<>
                         <tr key={item.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedItem(expandedItem === item.id ? null : item.id)}>
-                          <td style={s.td}><strong>{item.name}</strong></td>
+                          <td style={s.td}>
+                            <strong>{item.name}</strong>
+                            {item.category === 'Collectibles' && <span style={{ marginLeft: '6px', fontSize: '11px', background: P.gold + '25', color: P.amber, padding: '2px 7px', borderRadius: '8px', fontWeight: 700, border: `1px solid ${P.gold}50` }}>✨ Collectible</span>}
+                          </td>
                           <td style={s.td}><span style={{ fontSize: '11px', background: P.border, padding: '2px 8px', borderRadius: '8px' }}>{item.category}</span></td>
                           <td style={s.td}>{item.brand || '—'}</td>
                           <td style={s.td}>{item.size || '—'}</td>
@@ -802,7 +937,13 @@ Asking: ${price}
                           </td>
                           <td style={s.td}>{item.emotional_attachment ? '⭐'.repeat(item.emotional_attachment) : '—'}</td>
                           <td style={s.td} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: P.coral, fontSize: '16px' }}>🗑️</button>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              <button title="Used Up — mark as Toss" onClick={() => quickStatus(item.id, 'Toss')} style={{ padding: '4px 7px', fontSize: '12px', border: `1px solid ${P.border}`, borderRadius: '8px', background: '#fffbeb', cursor: 'pointer', whiteSpace: 'nowrap' }}>🗑️ Used Up</button>
+                              <button title="Donated — mark as Donate" onClick={() => quickStatus(item.id, 'Donate')} style={{ padding: '4px 7px', fontSize: '12px', border: `1px solid ${P.border}`, borderRadius: '8px', background: '#faf5ff', cursor: 'pointer', whiteSpace: 'nowrap' }}>💜 Donated</button>
+                              <button title="Listed on Poshmark — mark as Sell" onClick={() => quickStatus(item.id, 'Sell', { poshmark: true })} style={{ padding: '4px 7px', fontSize: '12px', border: `1px solid ${P.border}`, borderRadius: '8px', background: '#fff1f2', cursor: 'pointer', whiteSpace: 'nowrap' }}>🌸 Listed</button>
+                              <button title="Duplicate item" onClick={() => duplicateItem(item)} style={{ padding: '4px 7px', fontSize: '12px', border: `1px solid ${P.border}`, borderRadius: '8px', background: '#f0f9ff', cursor: 'pointer' }}>⧉</button>
+                              <button title="Delete" onClick={() => deleteItem(item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: P.coral, fontSize: '16px', padding: '4px' }}>🗑</button>
+                            </div>
                           </td>
                         </tr>
                         {expandedItem === item.id && (
@@ -904,11 +1045,92 @@ Asking: ${price}
                 </div>
               )}
 
+              {/* Quantity field */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={s.label}>Quantity</label>
+                <input style={{ ...s.input, width: '120px' }} type="number" min="1" max="99" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
+                {parseInt(form.quantity) > 1 && <div style={{ fontSize: '12px', color: P.lavender, marginTop: '4px', fontWeight: 600 }}>Will create {form.quantity} individual records</div>}
+              </div>
+
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button type="submit" style={s.btn(P.coral)} disabled={loading}>{loading ? 'Adding...' : '✨ Add Item'}</button>
                 <button type="button" style={s.btn('#e2e8f0', P.text)} onClick={() => setForm(emptyForm)}>Clear</button>
               </div>
             </form>
+
+            {/* ── Voice Add ── */}
+            <div style={{ marginTop: '28px', borderTop: `2px solid ${P.border}`, paddingTop: '24px' }}>
+              <h3 style={{ ...s.sectionTitle, marginBottom: '6px' }}>🎙️ Voice Add — Bulk Intake</h3>
+              <p style={{ fontSize: '13px', color: P.muted, marginBottom: '14px' }}>Type or paste a spoken list of items. Claude will parse them all at once.</p>
+              <textarea
+                style={{ ...s.input, height: '100px', resize: 'vertical', marginBottom: '10px' }}
+                value={voiceText}
+                onChange={e => setVoiceText(e.target.value)}
+                placeholder={'e.g. "3 pairs of jeans, a black leather purse, some Nike shoes, a set of kitchen knives, olive oil, two cans of chickpeas"'}
+              />
+              <button onClick={parseVoiceText} disabled={voiceLoading || !voiceText.trim()} style={s.btn(voiceLoading ? '#e2e8f0' : P.lavender)}>
+                {voiceLoading ? <><span style={{ display: 'inline-block', width: '12px', height: '12px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: '6px' }} />Parsing...</> : '🎙️ Parse Items'}
+              </button>
+              {voiceError && <div style={{ color: '#e11d48', background: '#fff1f2', borderRadius: '10px', padding: '10px 12px', fontSize: '13px', marginTop: '10px' }}>⚠️ {voiceError}</div>}
+              {voiceItems && voiceItems.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '10px', color: P.text }}>Preview — {voiceItems.length} items found:</div>
+                  <div style={{ background: '#fffbfb', borderRadius: '12px', border: `1px solid ${P.border}`, overflow: 'hidden', marginBottom: '14px' }}>
+                    {voiceItems.map((it, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < voiceItems.length - 1 ? `1px solid ${P.border}` : 'none', fontSize: '13px' }}>
+                        <span style={{ fontWeight: 600 }}>{it.name}</span>
+                        <span style={{ display: 'flex', gap: '8px', color: P.muted }}>
+                          <span style={{ fontSize: '11px', background: P.border, padding: '2px 7px', borderRadius: '6px' }}>{it.category}</span>
+                          <span style={{ fontSize: '11px', background: DECISION_BG[it.decision] || P.border, color: DECISION_COLORS[it.decision] || P.muted, padding: '2px 7px', borderRadius: '6px', fontWeight: 700 }}>{it.decision}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => bulkInsert(voiceItems, () => { setVoiceItems(null); setVoiceText('') })} style={s.btn(P.emerald)}>✅ Add All {voiceItems.length} Items</button>
+                    <button onClick={() => setVoiceItems(null)} style={s.btn('#e2e8f0', P.text)}>Discard</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Receipt Scanner ── */}
+            <div style={{ marginTop: '28px', borderTop: `2px solid ${P.border}`, paddingTop: '24px' }}>
+              <h3 style={{ ...s.sectionTitle, marginBottom: '6px' }}>📸 Receipt Scanner</h3>
+              <p style={{ fontSize: '13px', color: P.muted, marginBottom: '14px' }}>Upload a photo of a receipt. Claude will extract every line item automatically.</p>
+              <label style={{ display: 'inline-block', padding: '10px 20px', background: receiptFile ? P.sky + '20' : 'white', border: `2px dashed ${receiptFile ? P.sky : P.border}`, borderRadius: '12px', cursor: 'pointer', fontSize: '14px', color: receiptFile ? P.sky : P.muted, fontWeight: 600, marginBottom: '10px' }}>
+                {receiptFile ? `📎 ${receiptFile.name}` : '📷 Choose receipt photo or PDF'}
+                <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={e => { setReceiptFile(e.target.files[0]); setReceiptItems(null); setReceiptError(null) }} />
+              </label>
+              {receiptFile && (
+                <div style={{ marginLeft: '10px', display: 'inline-block' }}>
+                  <button onClick={() => parseReceipt(receiptFile)} disabled={receiptLoading} style={s.btn(receiptLoading ? '#e2e8f0' : P.sky)}>
+                    {receiptLoading ? <><span style={{ display: 'inline-block', width: '12px', height: '12px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginRight: '6px' }} />Scanning...</> : '📸 Scan Receipt'}
+                  </button>
+                </div>
+              )}
+              {receiptError && <div style={{ color: '#e11d48', background: '#fff1f2', borderRadius: '10px', padding: '10px 12px', fontSize: '13px', marginTop: '10px' }}>⚠️ {receiptError}</div>}
+              {receiptItems && receiptItems.length > 0 && (
+                <div style={{ marginTop: '16px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '10px', color: P.text }}>Preview — {receiptItems.length} items found:</div>
+                  <div style={{ background: '#fffbfb', borderRadius: '12px', border: `1px solid ${P.border}`, overflow: 'hidden', marginBottom: '14px' }}>
+                    {receiptItems.map((it, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 14px', borderBottom: i < receiptItems.length - 1 ? `1px solid ${P.border}` : 'none', fontSize: '13px' }}>
+                        <span style={{ fontWeight: 600 }}>{it.name}</span>
+                        <span style={{ display: 'flex', gap: '8px', alignItems: 'center', color: P.muted }}>
+                          {it.estimated_value && <span style={{ fontWeight: 700, color: P.amber }}>${parseFloat(it.estimated_value).toFixed(2)}</span>}
+                          <span style={{ fontSize: '11px', background: P.border, padding: '2px 7px', borderRadius: '6px' }}>{it.category}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => bulkInsert(receiptItems, () => { setReceiptItems(null); setReceiptFile(null) })} style={s.btn(P.emerald)}>✅ Add All {receiptItems.length} Items</button>
+                    <button onClick={() => setReceiptItems(null)} style={s.btn('#e2e8f0', P.text)}>Discard</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1111,6 +1333,44 @@ Asking: ${price}
           </div>
         </>)}
       </main>
+
+      {/* Floating Quick-Add Button */}
+      <button onClick={() => setQuickAddOpen(true)} title="Quick add item" style={{ position: 'fixed', bottom: '28px', right: '28px', width: '56px', height: '56px', borderRadius: '50%', background: `linear-gradient(135deg,${P.coral},${P.lavender})`, color: 'white', fontSize: '28px', fontWeight: 300, border: 'none', cursor: 'pointer', boxShadow: '0 4px 20px rgba(251,113,133,0.5)', zIndex: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        +
+      </button>
+
+      {/* Quick-Add Overlay */}
+      {quickAddOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(61,44,44,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 850, padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(251,113,133,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: P.text }}>✨ Quick Add</h3>
+              <button onClick={() => setQuickAddOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', color: P.muted }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={s.label}>Item Name</label>
+                <input autoFocus style={s.input} value={quickAddForm.name} onChange={e => setQuickAddForm({ ...quickAddForm, name: e.target.value })} placeholder="What are you adding?" onKeyDown={e => e.key === 'Enter' && quickAddItem()} />
+              </div>
+              <div>
+                <label style={s.label}>Category</label>
+                <select style={s.select} value={quickAddForm.category} onChange={e => setQuickAddForm({ ...quickAddForm, category: e.target.value })}>
+                  {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={s.label}>Decision</label>
+                <select style={s.select} value={quickAddForm.decision} onChange={e => setQuickAddForm({ ...quickAddForm, decision: e.target.value })}>
+                  {DECISIONS.map(d => <option key={d}>{d}</option>)}
+                </select>
+              </div>
+              <button onClick={quickAddItem} disabled={quickAddLoading || !quickAddForm.name.trim()} style={{ ...s.btn(P.coral), marginTop: '4px', width: '100%', fontSize: '15px', padding: '13px' }}>
+                {quickAddLoading ? 'Adding...' : '✨ Add Item'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Listing Modal */}
       {listingModal && (
